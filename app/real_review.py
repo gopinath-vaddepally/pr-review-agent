@@ -245,7 +245,7 @@ class PRReviewer:
                 logger.warning("Skipping AI analysis (no AI key or no files)")
                 # Add a simple comment
                 comments.append({
-                    "content": "✅ PR received and processed! (AI analysis disabled - add ANTHROPIC_API_KEY to enable)",
+                    "content": "✅ PR received and processed! (AI analysis disabled - add GROQ_API_KEY or ANTHROPIC_API_KEY to enable)",
                     "file_path": None,
                     "line": None
                 })
