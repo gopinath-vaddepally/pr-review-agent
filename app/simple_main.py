@@ -160,14 +160,21 @@ async def handle_webhook(request: Request, background_tasks: BackgroundTasks):
             logger.error("Missing PR ID or repository ID in webhook payload")
             raise HTTPException(status_code=400, detail="Invalid webhook payload")
         
+        # Determine if this is a new PR or an update
+        is_update = event_type == 'git.pullrequest.updated'
+        review_type = "incremental" if is_update else "full"
+        
+        logger.info(f"Review type: {review_type} ({'PR update' if is_update else 'New PR'})")
+        
         # Start real review in background
-        logger.info(f"🚀 Starting PR review in background...")
+        logger.info(f"🚀 Starting {review_type} PR review in background...")
         background_tasks.add_task(
             review_pr_background,
             repository_id,
             pr_id,
             project_id,
-            pr_title
+            pr_title,
+            is_update
         )
         
         return {
@@ -183,21 +190,22 @@ async def handle_webhook(request: Request, background_tasks: BackgroundTasks):
         raise HTTPException(status_code=500, detail=str(e))
 
 
-async def review_pr_background(repository_id: str, pr_id: int, project_id: str, pr_title: str):
+async def review_pr_background(repository_id: str, pr_id: int, project_id: str, pr_title: str, is_update: bool = False):
     """Background task to review PR."""
     try:
         logger.info(f"")
         logger.info(f"========================================")
-        logger.info(f"🔍 Starting PR Review")
+        logger.info(f"🔍 Starting {'Incremental' if is_update else 'Full'} PR Review")
         logger.info(f"========================================")
         logger.info(f"PR ID: {pr_id}")
         logger.info(f"Title: {pr_title}")
+        logger.info(f"Type: {'PR Update (incremental)' if is_update else 'New PR (full)'}")
         logger.info(f"")
         
         from app.real_review import PRReviewer
         
         reviewer = PRReviewer()
-        await reviewer.review_pr(repository_id, pr_id, project_id)
+        await reviewer.review_pr(repository_id, pr_id, project_id, is_update=is_update)
         
         logger.info(f"")
         logger.info(f"========================================")
