@@ -284,6 +284,9 @@ class PRReviewer:
                 lines = content.split('\n')
                 numbered_content = '\n'.join([f"{i+1:4d} | {line}" for i, line in enumerate(lines)])
 
+                # Load language-specific rules from plugin config
+                rules_guidance = self._get_language_rules(file_path)
+
                 prompt = f"""Review this code and identify specific issues with line numbers:
 
     File: {file_path}
@@ -292,6 +295,8 @@ class PRReviewer:
     ```
     {numbered_content}
     ```
+
+    {rules_guidance}
 
     For each issue, provide line number, issue description, and fix.
     Format as JSON array:
@@ -384,6 +389,70 @@ class PRReviewer:
             except Exception as e:
                 logger.error(f"AI analysis failed for {file_path}: {e}", exc_info=True)
                 return []
+    
+    def _get_language_rules(self, file_path: str) -> str:
+        """
+        Get language-specific review rules from plugin config.
+        
+        Args:
+            file_path: Path to the file being analyzed
+            
+        Returns:
+            Formatted rules guidance for AI prompt
+        """
+        try:
+            import yaml
+            
+            # Determine language from file extension
+            ext = Path(file_path).suffix.lower()
+            
+            # Map extensions to plugin configs
+            plugin_map = {
+                '.java': 'plugins/java/config.yaml',
+                '.ts': 'plugins/angular/config.yaml',
+                '.js': 'plugins/angular/config.yaml',
+            }
+            
+            config_path = plugin_map.get(ext)
+            if not config_path or not Path(config_path).exists():
+                return "Focus on security, code quality, and best practices."
+            
+            # Load plugin config
+            with open(config_path, 'r') as f:
+                config = yaml.safe_load(f)
+            
+            # Get system prompt and rules
+            system_prompt = config.get('llm_prompts', {}).get('system_prompt', '')
+            rules = config.get('analysis_rules', [])
+            
+            # Format rules guidance
+            guidance = f"{system_prompt}\n\n"
+            guidance += "Specifically check for:\n"
+            
+            # Add rule descriptions
+            rule_descriptions = {
+                'avoid_null_pointer': '- Null pointer exceptions and missing null checks',
+                'resource_leak': '- Resource leaks (unclosed streams, connections)',
+                'exception_handling': '- Poor exception handling (empty catch blocks, generic exceptions)',
+                'naming_conventions': '- Naming convention violations (PascalCase, camelCase)',
+                'code_complexity': '- High complexity (long methods, deep nesting)',
+                'unused_imports': '- Unused import statements',
+                'magic_numbers': '- Magic numbers that should be constants',
+                'long_methods': '- Methods exceeding 50 lines',
+                'observable_unsubscribe': '- Missing unsubscribe for Observables',
+                'change_detection': '- Inefficient change detection strategies',
+                'dependency_injection': '- Improper dependency injection',
+            }
+            
+            for rule in rules:
+                if rule in rule_descriptions:
+                    guidance += f"{rule_descriptions[rule]}\n"
+            
+            return guidance.strip()
+            
+        except Exception as e:
+            logger.warning(f"Could not load language rules: {e}")
+            return "Focus on security, code quality, and best practices."
 
     
     def _post_comment(self, repository_id: str, pr_id: int, comment: Dict):
@@ -393,6 +462,7 @@ class PRReviewer:
         # Create comment thread
         thread = CommentThread()
         thread.comments = [Comment(content=comment["content"])]
+        thread.status = 1  # 1 = Active status
         
         # If file-specific with line number, add context for inline comment
         if comment.get("file_path") and comment.get("line"):
@@ -413,7 +483,7 @@ class PRReviewer:
                 right_file_end=right_position  # Same line for single-line comment
             )
             
-            logger.info(f"Posting inline comment on {file_path}:{line_num}")
+            logger.info(f"Posting inline comment on {file_path}:{line_num} (Status: Active)")
         
         elif comment.get("file_path"):
             # File-level comment (no specific line)
@@ -424,10 +494,10 @@ class PRReviewer:
             thread.thread_context = CommentThreadContext(
                 file_path=file_path
             )
-            logger.info(f"Posting file-level comment on {file_path}")
+            logger.info(f"Posting file-level comment on {file_path} (Status: Active)")
         else:
             # General PR comment
-            logger.info("Posting general PR comment")
+            logger.info("Posting general PR comment (Status: Active)")
         
         # Post the thread
         try:
@@ -648,9 +718,17 @@ class PRReviewer:
         2. For each thread, check if the file was changed
         3. Re-analyze the code at that location
         4. If the issue is no longer present, mark as resolved
+        
+        Thread Status Values:
+        - 0 = Unknown
+        - 1 = Active
+        - 2 = Pending
+        - 3 = Fixed
+        - 4 = Won't Fix
+        - 5 = Closed
         """
         try:
-            from azure.devops.v7_1.git.models import CommentThreadStatus, Comment
+            from azure.devops.v7_1.git.models import Comment
             
             logger.info("Checking previous issues for resolution...")
             
@@ -662,8 +740,8 @@ class PRReviewer:
             checked_count = 0
             
             for thread in existing_threads:
-                # Skip if thread is already resolved or closed
-                if thread.status in [CommentThreadStatus.CLOSED, CommentThreadStatus.FIXED]:
+                # Skip if thread is already resolved or closed (status 3, 4, or 5)
+                if thread.status in [3, 4, 5]:
                     continue
                 
                 # Skip if no file context (general PR comments)
@@ -711,14 +789,14 @@ class PRReviewer:
                 if is_fixed:
                     # Mark thread as resolved
                     try:
-                        thread.status = CommentThreadStatus.FIXED
+                        thread.status = 3  # 3 = Fixed status
                         
                         # Add a comment saying it's fixed
                         resolution_comment = Comment(
                             content="✅ **Issue Resolved** - This issue has been fixed in the latest update."
                         )
                         
-                        # Update the thread
+                        # Update the thread status
                         self.git_client.update_thread(
                             comment_thread=thread,
                             repository_id=repository_id,
@@ -735,7 +813,7 @@ class PRReviewer:
                         )
                         
                         resolved_count += 1
-                        logger.info(f"  ✅ Resolved: {file_path}:{line_num}")
+                        logger.info(f"  ✅ Resolved: {file_path}:{line_num} (Status: Fixed)")
                         
                     except Exception as e:
                         logger.warning(f"Could not mark thread as resolved: {e}")
