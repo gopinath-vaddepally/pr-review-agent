@@ -55,21 +55,31 @@ class PRReviewer:
             logger.info(f"Author: {pr.created_by.display_name}")
             logger.info(f"Source: {pr.source_ref_name} -> Target: {pr.target_ref_name}")
             
-            # Step 2: Get changed files
+            # Step 2: Get changed files from the source commit
             logger.info(f"[Step 2/5] Fetching changed files...")
-            changes = self.git_client.get_pull_request_iteration_changes(
-                repository_id=repository_id,
-                pull_request_id=pr_id,
-                iteration_id=1
+            
+            source_commit_id = pr.last_merge_source_commit.commit_id
+            target_commit_id = pr.last_merge_target_commit.commit_id
+            
+            logger.info(f"Comparing commits: {target_commit_id[:8]} -> {source_commit_id[:8]}")
+            
+            # Get commit changes
+            commit_changes = self.git_client.get_changes(
+                commit_id=source_commit_id,
+                repository_id=repository_id
             )
             
             changed_files = []
-            for change in changes.change_entries:
-                if change.item and hasattr(change.item, 'path'):
-                    file_path = change.item.path
-                    if not self._is_binary_file(file_path):
-                        changed_files.append(file_path)
-                        logger.info(f"  - {file_path}")
+            for change in commit_changes.changes:
+                try:
+                    if hasattr(change, 'item') and change.item and hasattr(change.item, 'path'):
+                        file_path = change.item.path
+                        if file_path and not file_path.startswith('/') and not self._is_binary_file(file_path):
+                            changed_files.append(file_path)
+                            logger.info(f"  - {file_path}")
+                except Exception as e:
+                    logger.warning(f"Error processing change: {e}")
+                    continue
             
             logger.info(f"Found {len(changed_files)} changed files")
             
