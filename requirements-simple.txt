@@ -8,8 +8,12 @@ python-multipart==0.0.9
 # Azure DevOps SDK
 azure-devops==7.1.0b4
 
-# OpenAI (for future LLM integration)
-openai==1.54.0
+# AI - Multiple options supported:
+# 1. Groq (free, fast) - Get key from https://console.groq.com/
+# 2. Anthropic Claude - Get key from https://console.anthropic.com/ ($5 free)
+# 3. Ollama (local only) - Install from https://ollama.com/
+anthropic==0.39.0  # Optional: only if using Anthropic
+groq==0.11.0  # Optional: only if using Groq (recommended for free cloud deployment)
 
 # Environment and configuration
 python-dotenv==1.0.1
