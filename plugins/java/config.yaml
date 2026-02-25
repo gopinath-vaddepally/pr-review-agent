@@ -1,0 +1,204 @@
+# Java Language Plugin Configuration
+
+name: java
+version: 1.0.0
+description: Java language analysis plugin with tree-sitter parsing
+
+# Supported file extensions
+file_extensions:
+  - .java
+
+# Tree-sitter grammar
+tree_sitter_grammar: tree-sitter-java
+
+# Analysis rules
+analysis_rules:
+  - avoid_null_pointer
+  - resource_leak
+  - exception_handling
+  - naming_conventions
+  - code_complexity
+  - unused_imports
+  - magic_numbers
+  - long_methods
+
+# LLM prompts
+llm_prompts:
+  system_prompt: |
+    You are an expert Java code reviewer. Analyze the provided code for:
+    - Potential bugs (null pointer exceptions, resource leaks, boundary conditions)
+    - Code smells (long methods, deep nesting, duplicated code)
+    - Security vulnerabilities (injection risks, insecure data handling)
+    - Best practice violations (naming conventions, exception handling, documentation)
+    
+    Provide specific, actionable feedback with code examples when possible.
+  
+  context_template: |
+    File: {file_path}
+    Class: {enclosing_class}
+    Method: {enclosing_method}
+    Imports: {imports}
+    
+    Line {line_number}: {line_content}
+    
+    Context:
+    {surrounding_lines}
+  
+  # Rule-specific prompt templates
+  avoid_null_pointer: |
+    Analyze this Java code for potential null pointer exceptions:
+    
+    {context}
+    
+    Check for:
+    1. Dereferencing variables that could be null without null checks
+    2. Method calls on potentially null objects
+    3. Array or collection access without null validation
+    4. Return values from methods that could be null
+    5. Missing @Nullable/@NonNull annotations
+    
+    If a null pointer risk is found, provide:
+    - Specific line and variable/method causing the risk
+    - Why it could be null
+    - Suggested fix with code example (e.g., null check, Optional usage, Objects.requireNonNull)
+  
+  resource_leak: |
+    Analyze this Java code for potential resource leaks:
+    
+    {context}
+    
+    Check for:
+    1. Resources (InputStream, OutputStream, Reader, Writer, Connection, Statement, ResultSet) not closed
+    2. Resources not using try-with-resources statement
+    3. Resources closed in finally block without proper null checks
+    4. Multiple resources where one might fail to close if another throws exception
+    5. Custom AutoCloseable implementations not being closed
+    
+    If a resource leak is found, provide:
+    - Specific resource type and variable name
+    - Why it might not be closed (missing try-with-resources, exception in finally, etc.)
+    - Suggested fix with try-with-resources example
+  
+  exception_handling: |
+    Analyze this Java exception handling code:
+    
+    {context}
+    
+    Check for:
+    1. Empty catch blocks that swallow exceptions
+    2. Catching generic Exception or Throwable instead of specific exceptions
+    3. Catching and logging but not rethrowing or handling appropriately
+    4. Throwing generic Exception instead of specific exception types
+    5. Missing exception documentation in method signatures
+    6. Catching exceptions that should be propagated
+    7. Using exceptions for control flow
+    
+    If poor exception handling is found, provide:
+    - Specific issue with the exception handling
+    - Why it's problematic (lost error information, unclear error handling, etc.)
+    - Suggested fix with proper exception handling example
+  
+  naming_conventions: |
+    Analyze this Java code for naming convention violations:
+    
+    {context}
+    
+    Check for:
+    1. Class names not in PascalCase (e.g., myClass should be MyClass)
+    2. Method names not in camelCase (e.g., MyMethod should be myMethod)
+    3. Constants not in UPPER_SNAKE_CASE (e.g., maxValue should be MAX_VALUE)
+    4. Variable names not descriptive (e.g., x, temp, data)
+    5. Package names not in lowercase
+    6. Interface names with 'I' prefix (outdated convention)
+    7. Boolean variables not starting with is/has/can/should
+    
+    If a naming violation is found, provide:
+    - Specific identifier and its current name
+    - What convention it violates
+    - Suggested better name following Java conventions
+  
+  code_complexity: |
+    Analyze this Java code for complexity issues:
+    
+    {context}
+    
+    Check for:
+    1. Methods longer than 50 lines
+    2. Cyclomatic complexity > 10 (too many branches/loops)
+    3. Nesting depth > 4 levels
+    4. Too many parameters (> 5)
+    5. Long parameter lists that should be objects
+    6. Multiple responsibilities in one method (SRP violation)
+    
+    If complexity issues are found, provide:
+    - Specific complexity metric violated
+    - Why it makes code hard to understand/maintain
+    - Suggested refactoring (extract method, introduce parameter object, etc.)
+  
+  unused_imports: |
+    Analyze this Java import statement:
+    
+    {context}
+    
+    Check if the imported class/package is actually used in the code.
+    Consider:
+    1. Direct usage of the imported class
+    2. Usage in annotations
+    3. Usage in generic type parameters
+    4. Static imports and their usage
+    
+    If the import is unused, suggest removing it to reduce clutter.
+  
+  magic_numbers: |
+    Analyze this Java code for magic numbers:
+    
+    {context}
+    
+    Check for:
+    1. Numeric literals (except 0, 1, -1) without explanation
+    2. Numbers that represent domain concepts (e.g., 86400 for seconds in a day)
+    3. Repeated numeric literals that should be constants
+    4. String literals that should be constants
+    
+    If magic numbers are found, provide:
+    - The magic number and its location
+    - What it likely represents
+    - Suggested constant name and declaration
+  
+  long_methods: |
+    Analyze this Java method for excessive length:
+    
+    {context}
+    
+    Check if:
+    1. Method exceeds 50 lines
+    2. Method has multiple distinct responsibilities
+    3. Method has logical sections that could be extracted
+    4. Method name doesn't match all its responsibilities
+    
+    If the method is too long, provide:
+    - Current line count
+    - Suggested extraction points (logical sections)
+    - Suggested names for extracted methods
+
+# Design patterns to detect
+design_patterns:
+  - Singleton
+  - Factory
+  - Builder
+  - Observer
+  - Strategy
+  - Decorator
+  - Adapter
+
+# Rule configurations
+rule_configs:
+  code_complexity:
+    max_method_lines: 50
+    max_cyclomatic_complexity: 10
+    max_nesting_depth: 4
+  
+  naming_conventions:
+    class_pattern: "^[A-Z][a-zA-Z0-9]*$"
+    method_pattern: "^[a-z][a-zA-Z0-9]*$"
+    constant_pattern: "^[A-Z][A-Z0-9_]*$"

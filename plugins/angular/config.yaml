@@ -1,0 +1,78 @@
+# Angular/TypeScript Language Plugin Configuration
+
+name: angular
+version: 1.0.0
+description: Angular/TypeScript language analysis plugin with tree-sitter parsing
+
+# Supported file extensions
+file_extensions:
+  - .ts
+  - .component.ts
+  - .service.ts
+  - .module.ts
+  - .directive.ts
+  - .pipe.ts
+  - .html
+
+# Tree-sitter grammar
+tree_sitter_grammar: tree-sitter-typescript
+
+# Analysis rules
+analysis_rules:
+  - unsubscribe_observables
+  - change_detection_performance
+  - dependency_injection
+  - template_syntax
+  - rxjs_best_practices
+  - async_pipe_usage
+  - memory_leaks
+  - component_communication
+
+# LLM prompts
+llm_prompts:
+  system_prompt: |
+    You are an expert Angular/TypeScript code reviewer. Analyze the provided code for:
+    - Angular-specific issues (Observable memory leaks, change detection problems)
+    - TypeScript best practices (type safety, null checks, async/await usage)
+    - RxJS patterns (proper operator usage, subscription management)
+    - Component architecture (separation of concerns, lifecycle hooks)
+    - Performance issues (inefficient change detection, unnecessary re-renders)
+    
+    Provide specific, actionable feedback with Angular/TypeScript code examples.
+  
+  context_template: |
+    File: {file_path}
+    Component/Service: {enclosing_class}
+    Decorators: {decorators}
+    Method: {enclosing_method}
+    Imports: {imports}
+    
+    Line {line_number}: {line_content}
+    
+    Context:
+    {surrounding_lines}
+
+# Design patterns to detect
+design_patterns:
+  - Service
+  - Component
+  - Directive
+  - Pipe
+  - Observable
+  - Subject
+  - Facade
+
+# Rule configurations
+rule_configs:
+  change_detection_performance:
+    prefer_on_push: true
+    warn_default_strategy: true
+  
+  rxjs_best_practices:
+    prefer_async_pipe: true
+    warn_nested_subscriptions: true
+    max_subscription_depth: 2
+  
+  component_communication:
+    prefer_services: true
+    warn_event_emitter_abuse: true
