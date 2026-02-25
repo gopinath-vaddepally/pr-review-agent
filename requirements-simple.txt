@@ -1,0 +1,21 @@
+# Minimal requirements for simple mode (no LangChain, no database)
+
+# Core web framework
+fastapi==0.115.0
+uvicorn[standard]==0.30.0
+python-multipart==0.0.9
+
+# Azure DevOps SDK
+azure-devops==7.1.0b4
+
+# OpenAI (for future LLM integration)
+openai==1.54.0
+
+# Environment and configuration
+python-dotenv==1.0.1
+pydantic==2.9.0
+pydantic-settings==2.5.0
+
+# Utilities
+httpx==0.27.0
+pyyaml==6.0.2
