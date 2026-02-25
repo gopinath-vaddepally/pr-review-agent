@@ -121,49 +121,97 @@ async def handle_webhook(request: Request, background_tasks: BackgroundTasks):
     """
     Handle Azure DevOps PR webhook.
     
-    In local mode, this simulates the full workflow:
+    This now does REAL PR review:
     1. Receive webhook
-    2. Parse PR event
-    3. Simulate agent execution
-    4. Return success
+    2. Fetch PR code from Azure DevOps
+    3. Analyze with OpenAI
+    4. Post comments back to PR
     """
     try:
         # Get payload
         payload = await request.json()
         
-        logger.info(f"Received webhook: {payload.get('eventType', 'unknown')}")
+        event_type = payload.get('eventType', 'unknown')
+        logger.info(f"========================================")
+        logger.info(f"📥 Received webhook: {event_type}")
+        logger.info(f"========================================")
         
         # Extract PR info
         resource = payload.get("resource", {})
-        pr_id = str(resource.get("pullRequestId", "unknown"))
+        pr_id = resource.get("pullRequestId")
         repository = resource.get("repository", {})
+        repository_id = repository.get("id")
+        project = repository.get("project", {})
+        project_id = project.get("id")
         
-        # Create PR event
-        pr_event = {
-            "pr_id": pr_id,
-            "repository_id": repository.get("id", "unknown"),
-            "source_branch": resource.get("sourceRefName", "").replace("refs/heads/", ""),
-            "target_branch": resource.get("targetRefName", "").replace("refs/heads/", ""),
-            "author": resource.get("createdBy", {}).get("displayName", "unknown"),
-            "title": resource.get("title", ""),
-        }
+        pr_title = resource.get("title", "")
+        author = resource.get("createdBy", {}).get("displayName", "unknown")
+        source_branch = resource.get("sourceRefName", "").replace("refs/heads/", "")
+        target_branch = resource.get("targetRefName", "").replace("refs/heads/", "")
         
-        logger.info(f"Processing PR {pr_id}: {pr_event['title']}")
+        logger.info(f"PR ID: {pr_id}")
+        logger.info(f"Title: {pr_title}")
+        logger.info(f"Author: {author}")
+        logger.info(f"Branch: {source_branch} -> {target_branch}")
+        logger.info(f"Repository ID: {repository_id}")
+        logger.info(f"Project ID: {project_id}")
         
-        # Simulate agent execution in background
-        background_tasks.add_task(simulate_agent_execution, pr_event)
+        if not pr_id or not repository_id:
+            logger.error("Missing PR ID or repository ID in webhook payload")
+            raise HTTPException(status_code=400, detail="Invalid webhook payload")
+        
+        # Start real review in background
+        logger.info(f"🚀 Starting PR review in background...")
+        background_tasks.add_task(
+            review_pr_background,
+            repository_id,
+            pr_id,
+            project_id,
+            pr_title
+        )
         
         return {
             "status": "accepted",
-            "message": f"PR event for {pr_id} accepted for processing",
+            "message": f"PR {pr_id} accepted for review",
             "pr_id": pr_id,
-            "mode": "local",
-            "note": "In local mode, agent execution is simulated. Check logs for details."
+            "title": pr_title,
+            "note": "Review is running in background. Check logs for progress."
         }
         
     except Exception as e:
-        logger.error(f"Error handling webhook: {e}", exc_info=True)
+        logger.error(f"❌ Error handling webhook: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
+
+
+async def review_pr_background(repository_id: str, pr_id: int, project_id: str, pr_title: str):
+    """Background task to review PR."""
+    try:
+        logger.info(f"")
+        logger.info(f"========================================")
+        logger.info(f"🔍 Starting PR Review")
+        logger.info(f"========================================")
+        logger.info(f"PR ID: {pr_id}")
+        logger.info(f"Title: {pr_title}")
+        logger.info(f"")
+        
+        from app.real_review import PRReviewer
+        
+        reviewer = PRReviewer()
+        await reviewer.review_pr(repository_id, pr_id, project_id)
+        
+        logger.info(f"")
+        logger.info(f"========================================")
+        logger.info(f"✅ PR Review Complete!")
+        logger.info(f"========================================")
+        logger.info(f"")
+        
+    except Exception as e:
+        logger.error(f"")
+        logger.error(f"========================================")
+        logger.error(f"❌ PR Review Failed")
+        logger.error(f"========================================")
+        logger.error(f"Error: {e}", exc_info=True)
+        logger.error(f"")
 
 
 async def simulate_agent_execution(pr_event: dict):
